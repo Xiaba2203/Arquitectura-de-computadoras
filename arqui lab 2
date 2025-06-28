@@ -1,0 +1,235 @@
+PREGUNTA 1 – FIFO y anomalía de Belady
+📊 Tabla de resultados (ejemplo con 100 accesos)
+⚠️ Asegúrate de reemplazar los valores por los que te da tu programa.
+
+matlab
+Copiar
+Editar
+PATRON       FRAMES     PAGE_FAULTS   HIT_RATE(%)   CICLOS_TOTALES
+ALEATORIO    16         96            4.0%          96096
+ALEATORIO    32         89            11.0%         89089
+REPETITIVO   16         48            52.0%         4848
+REPETITIVO   32         36            64.0%         3636
+❓ ¿Por qué cada patrón genera diferente número de page faults, hit rate y ciclos totales?
+El patrón aleatorio accede a páginas sin ningún orden, lo que provoca que las páginas se reemplacen constantemente y se generen más fallos de página, reduciendo el hit rate y aumentando los ciclos totales.
+
+En cambio, el patrón repetitivo accede varias veces a las mismas páginas antes de cambiar, lo que permite mantener esas páginas en memoria más tiempo, reduciendo los page faults, aumentando el hit rate y disminuyendo los ciclos totales.
+
+❓ Si cambiamos a 200 accesos, ¿cómo cambian los resultados?
+Al duplicar el número de accesos a 200:
+
+El número total de page faults aumenta en ambos patrones, pero en el patrón repetitivo el incremento es menor debido a la reutilización de páginas.
+
+El hit rate mejora levemente en el patrón repetitivo, ya que hay más reutilización.
+
+Los ciclos totales aumentan considerablemente en el patrón aleatorio, ya que hay más page faults y cada uno cuesta muchos ciclos.
+
+✅ PREGUNTA 2 – Acceso por filas y columnas con TLB
+📊 Resultados esperados (ejemplo con imagen 512x512)
+Reemplaza los valores por los que te dé tu código.
+
+yaml
+Copiar
+Editar
+=== ACCESO POR FILAS ===
+Ciclos: 90000
+Page Faults: 10
+TLB Hit Rate: 95.5%
+Overhead: 1.7%
+
+=== ACCESO POR COLUMNAS ===
+Ciclos: 250000
+Page Faults: 90
+TLB Hit Rate: 45.0%
+Overhead: 20.0%
+❓ ¿Cuál acceso tiene mejor desempeño: por columnas o por filas? ¿Por qué?
+El acceso por filas tiene mejor desempeño porque los datos en memoria están almacenados en orden fila por fila. Esto favorece la localidad espacial, lo que reduce los cambios de página y aumenta los TLB hits. En cambio, el acceso por columnas salta entre filas, accediendo a diferentes páginas constantemente, lo que causa más TLB misses y page faults.
+
+❓ ¿Cuál es la relación entre page faults y TLB en este caso?
+El TLB guarda traducciones de páginas recientes. Si hay muchos TLB misses, se accede a la tabla de páginas, y si la página no está cargada en memoria, se produce un page fault. Es decir, los TLB misses no siempre causan page faults, pero los page faults siempre ocurren tras un TLB miss. Un mal uso del TLB (como con acceso por columnas) incrementa los page faults indirectamente.
+
+❓ ¿Qué ocurriría si usamos una imagen de 1024x1024 px?
+Al aumentar el tamaño de la imagen:
+
+Se cuadruplica el número de accesos a memoria.
+
+El TLB se satura más rápido, disminuyendo el hit rate.
+
+Habrá muchos más page faults si no se optimiza el uso del TLB.
+
+El overhead total y los ciclos de ejecución aumentan fuertemente, especialmente en el acceso por columnas.
+
+¿Quieres que también te dé una versión para 200 accesos en Pregunta 1 si decides ampliar el experimento?
+
+
+
+
+
+
+
+Dijiste:
+como saco los ciclos totales en mi programa
+
+
+ChatGPT dijo:
+Buena pregunta. Para la Pregunta 1 (FIFO), ya tienes una fórmula sencilla en tu código:
+
+✅ Fórmula para ciclos totales (Pregunta 1):
+c
+Copiar
+Editar
+int calcular_ciclos_totales(int page_faults, int total_accesos) {
+    int hits = total_accesos - page_faults;
+    return (hits * CICLOS_HIT) + (page_faults * CICLOS_PAGE_FAULT);
+}
+Con tus valores definidos:
+
+c
+Copiar
+Editar
+#define CICLOS_HIT 1
+#define CICLOS_PAGE_FAULT 1000
+Entonces, por ejemplo, si tuviste:
+
+page_faults = 80
+
+total_accesos = 100
+
+Se calcula así:
+
+ini
+Copiar
+Editar
+hits = 100 - 80 = 20
+ciclos = (20 * 1) + (80 * 1000) = 20 + 80000 = 80020
+Y en tu main() ya tienes esto:
+
+c
+Copiar
+Editar
+int ciclos_16 = calcular_ciclos_totales(pf_16, NUM_ACCESOS);
+✅ ¿Dónde se muestra?
+En la línea de impresión:
+
+c
+Copiar
+Editar
+printf("%-12s %-8d %-12d %-12.1f %-15d\n", nombres_patron[tipo], 16, pf_16, hr_16, ciclos_16);
+Allí se muestra automáticamente en consola el total de ciclos. Solo copia ese valor para tu tabla.
+
+📝 Recuerda:
+Los ciclos totales miden el tiempo "simulado" del sistema, asumiendo penalizaciones de:
+
+1 ciclo por hit
+
+1000 ciclos por page fault
+
+Si cambias esos valores en los #define, se recalculan automáticamente.
+
+¿Quieres que te muestre cómo quedaría si cambias por ejemplo los valores a CICLOS_PAGE_FAULT = 3000 o si aumentas a 200 accesos?
+
+
+
+
+
+
+
+Dijiste:
+dime paso a paso como resolverlo, pensé q podías hacerlo tú
+
+
+ChatGPT dijo:
+¡Claro! Aquí va el paso a paso bien explicado para calcular los ciclos totales de la Pregunta 1, desde cero, como si no supieras nada.
+
+🎯 OBJETIVO:
+Saber cuántos ciclos totales consume tu programa para acceder a la memoria usando el algoritmo FIFO.
+
+Cada acceso a una página puede ser:
+
+✅ Un hit (ya estaba en memoria): cuesta 1 ciclo
+
+❌ Un page fault (no estaba en memoria): cuesta 1000 ciclos
+
+✅ PASOS PARA CALCULAR CICLOS TOTALES (FIFO)
+🔹 PASO 1: Define cuántos accesos hay
+Esto ya está en tu código:
+
+c
+Copiar
+Editar
+#define NUM_ACCESOS 100
+Eso significa que vas a simular 100 accesos a páginas web.
+
+🔹 PASO 2: Ejecuta tu algoritmo y guarda cuántos page faults hubo
+Esto también ya está en el main() de tu código:
+
+c
+Copiar
+Editar
+int pf_16 = algoritmo_fifo(accesos, NUM_ACCESOS, 16);  // con 16 frames
+Este número (pf_16) es cuántas veces hubo un page fault.
+
+🔹 PASO 3: Calcula cuántos hits hubo
+Fácil:
+
+c
+Copiar
+Editar
+int hits = NUM_ACCESOS - pf_16;
+🔹 PASO 4: Multiplica los hits y page faults por sus ciclos
+c
+Copiar
+Editar
+int ciclos = (hits * 1) + (pf_16 * 1000);
+Esto representa:
+
+Cada hit te cuesta 1 ciclo
+
+Cada page fault te cuesta 1000 ciclos
+
+🔹 PASO 5: Imprime el resultado
+Ya tienes este código en tu programa:
+
+c
+Copiar
+Editar
+printf("Ciclos totales: %d\n", ciclos);
+También puedes usar la función que ya existe en tu código:
+
+c
+Copiar
+Editar
+int calcular_ciclos_totales(int page_faults, int total_accesos) {
+    int hits = total_accesos - page_faults;
+    return (hits * CICLOS_HIT) + (page_faults * CICLOS_PAGE_FAULT);
+}
+Y llamarla así:
+
+c
+Copiar
+Editar
+int ciclos_16 = calcular_ciclos_totales(pf_16, NUM_ACCESOS);
+📌 EJEMPLO COMPLETO:
+Supón que ejecutas tu código y obtienes:
+
+c
+Copiar
+Editar
+FIFO con 16 frames: 80 page faults
+Entonces:
+
+c
+Copiar
+Editar
+hits = 100 - 80 = 20
+ciclos = (20 * 1) + (80 * 1000) = 20 + 80000 = 80020 ciclos
+Ese es el número que debes poner en tu tabla en la columna de "Ciclos totales".
+
+✅ EN RESUMEN (para archivo .txt):
+java
+Copiar
+Editar
+Page faults = X
+Hits = 100 - X
+Ciclos totales = (Hits * 1) + (Page faults * 1000)
+Listo. Si me pasas los valores que te salen en consola, te ayudo a armar la tabla completa ya con los números listos. ¿Quieres hacer eso?
