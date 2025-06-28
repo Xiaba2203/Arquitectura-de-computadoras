@@ -1,0 +1,233 @@
+// ===================== PREGUNTA 1 =====================
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+#define MAX_PAGINAS_WEB 100
+#define NUM_ACCESOS 100
+#define CICLOS_HIT 1
+#define CICLOS_PAGE_FAULT 1000
+
+char *nombres_patron[] = {"", "ALEATORIO  ", "REPETITIVO "};
+
+int algoritmo_fifo(int *accesos, int num_accesos, int frames) {
+    int *memoria = calloc(frames, sizeof(int));
+    int puntero_fifo = 0;
+    int page_faults = 0;
+
+    for (int i = 0; i < frames; i++) memoria[i] = -1;
+
+    for (int i = 0; i < num_accesos; i++) {
+        int pagina = accesos[i];
+        int encontrada = 0;
+        for (int j = 0; j < frames; j++) {
+            if (memoria[j] == pagina) {
+                encontrada = 1;
+                break;
+            }
+        }
+        if (!encontrada) {
+            page_faults++;
+            memoria[puntero_fifo] = pagina;
+            puntero_fifo = (puntero_fifo + 1) % frames;
+        }
+    }
+
+    free(memoria);
+    return page_faults;
+}
+
+void generar_patron(int *accesos, int cantidad, int tipo) {
+    srand(42);
+    if (tipo == 1) { // Aleatorio
+        for (int i = 0; i < cantidad; i++) {
+            accesos[i] = rand() % MAX_PAGINAS_WEB;
+        }
+    } else if (tipo == 2) { // Repetitivo
+        for (int i = 0; i < cantidad; i++) {
+            accesos[i] = (i / 5) % MAX_PAGINAS_WEB;
+        }
+    }
+}
+
+double calcular_hit_rate(int page_faults, int total_accesos) {
+    return ((double)(total_accesos - page_faults) / total_accesos) * 100.0;
+}
+
+int calcular_ciclos_totales(int page_faults, int total_accesos) {
+    int hits = total_accesos - page_faults;
+    return (hits * CICLOS_HIT) + (page_faults * CICLOS_PAGE_FAULT);
+}
+
+int detectar_belady_anomaly(int *accesos, int num_accesos) {
+    int pf16 = algoritmo_fifo(accesos, num_accesos, 16);
+    int pf32 = algoritmo_fifo(accesos, num_accesos, 32);
+    printf("   FIFO con 16 frames: %d page faults\n", pf16);
+    printf("   FIFO con 32 frames: %d page faults\n", pf32);
+    if (pf32 > pf16) {
+        printf("¡ANOMALÍA DETECTADA!\n");
+        return 1;
+    } else {
+        printf("Comportamiento normal\n");
+        return 0;
+    }
+}
+
+int main() {
+    int *accesos = malloc(NUM_ACCESOS * sizeof(int));
+
+    printf("PATRON      FRAMES   PAGE_FAULTS   HIT_RATE(%)   CICLOS_TOTALES\n");
+
+    for (int tipo = 1; tipo <= 2; tipo++) {
+        generar_patron(accesos, NUM_ACCESOS, tipo);
+
+        int pf16 = algoritmo_fifo(accesos, NUM_ACCESOS, 16);
+        double hr16 = calcular_hit_rate(pf16, NUM_ACCESOS);
+        int ciclos16 = calcular_ciclos_totales(pf16, NUM_ACCESOS);
+
+        int pf32 = algoritmo_fifo(accesos, NUM_ACCESOS, 32);
+        double hr32 = calcular_hit_rate(pf32, NUM_ACCESOS);
+        int ciclos32 = calcular_ciclos_totales(pf32, NUM_ACCESOS);
+
+        printf("%-12s %-8d %-12d %-12.1f %-15d\n", nombres_patron[tipo], 16, pf16, hr16, ciclos16);
+        printf("%-12s %-8d %-12d %-12.1f %-15d\n", nombres_patron[tipo], 32, pf32, hr32, ciclos32);
+
+        detectar_belady_anomaly(accesos, NUM_ACCESOS);
+        printf("\n");
+    }
+
+    free(accesos);
+    return 0;
+
+
+
+
+
+
+
+
+
+
+
+
+// ===================== PREGUNTA 2 =====================
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+#define IMAGEN_SIZE 512
+#define TAMAÑO_PAGINA 4096
+#define DOUBLES_POR_PAGINA (TAMAÑO_PAGINA / sizeof(double))
+#define TLB_ENTRADAS 64
+#define CICLOS_TLB_HIT 1
+#define CICLOS_TLB_MISS 10
+#define CICLOS_PAGE_FAULT 1000
+
+int tlb_hits, tlb_misses, page_faults;
+int tlb_tabla[TLB_ENTRADAS];
+
+void inicializar_tlb() {
+    for (int i = 0; i < TLB_ENTRADAS; i++) tlb_tabla[i] = -1;
+    tlb_hits = 0;
+    tlb_misses = 0;
+    page_faults = 0;
+}
+
+int acceso_memoria(int pagina) {
+    for (int j = 0; j < TLB_ENTRADAS; j++) {
+        if (tlb_tabla[j] == pagina) {
+            tlb_hits++;
+            return CICLOS_TLB_HIT;
+        }
+    }
+
+    tlb_misses++;
+    tlb_tabla[tlb_misses % TLB_ENTRADAS] = pagina;
+
+    int ciclos = CICLOS_TLB_MISS;
+    if (pagina > 100) {
+        page_faults++;
+        ciclos += CICLOS_PAGE_FAULT;
+    }
+
+    return ciclos;
+}
+
+int procesar_filas(double *imagen, double *resultado, int N) {
+    inicializar_tlb();
+    int ciclos_totales = 0;
+
+    for (int fila = 0; fila < N; fila++) {
+        for (int col = 0; col < N; col++) {
+            int i = fila * N + col;
+            int pagina = i / DOUBLES_POR_PAGINA;
+            ciclos_totales += acceso_memoria(pagina);
+            resultado[i] = imagen[i] * 1.5;
+        }
+    }
+
+    return ciclos_totales;
+}
+
+int procesar_columnas(double *imagen, double *resultado, int N) {
+    inicializar_tlb();
+    int ciclos_totales = 0;
+
+    for (int col = 0; col < N; col++) {
+        for (int fila = 0; fila < N; fila++) {
+            int i = fila * N + col;
+            int pagina = i / DOUBLES_POR_PAGINA;
+            ciclos_totales += acceso_memoria(pagina);
+            resultado[i] = imagen[i] * 1.5;
+        }
+    }
+
+    return ciclos_totales;
+}
+
+double calcular_overhead(int ciclos_virtuales, int elementos) {
+    return ((double)(ciclos_virtuales - elementos) / elementos) * 100.0;
+}
+
+int calcular_working_set(int N, int tipo) {
+    if (tipo == 1) {
+        int paginas_por_fila = (N * sizeof(double) + TAMAÑO_PAGINA - 1) / TAMAÑO_PAGINA;
+        return paginas_por_fila + 1;
+    } else {
+        return (N * N * sizeof(double) + TAMAÑO_PAGINA - 1) / TAMAÑO_PAGINA;
+    }
+}
+
+int main() {
+    int N = IMAGEN_SIZE;
+    double *imagen = malloc(N * N * sizeof(double));
+    double *resultado_filas = malloc(N * N * sizeof(double));
+    double *resultado_columnas = malloc(N * N * sizeof(double));
+
+    srand(52);
+    for (int i = 0; i < N * N; i++) {
+        imagen[i] = rand() % 4096;
+    }
+
+    printf("=== ACCESO POR FILAS ===\n");
+    int ciclos_filas = procesar_filas(imagen, resultado_filas, N);
+    double hit_rate_filas = (double)tlb_hits / (tlb_hits + tlb_misses) * 100;
+    double overhead_filas = calcular_overhead(ciclos_filas, N * N);
+    printf("Ciclos: %d, Page Faults: %d, TLB Hit Rate: %.1f%%, Overhead: %.1f%%\n",
+           ciclos_filas, page_faults, hit_rate_filas, overhead_filas);
+
+    printf("\n=== ACCESO POR COLUMNAS ===\n");
+    int ciclos_col = procesar_columnas(imagen, resultado_columnas, N);
+    double hit_rate_col = (double)tlb_hits / (tlb_hits + tlb_misses) * 100;
+    double overhead_col = calcular_overhead(ciclos_col, N * N);
+    printf("Ciclos: %d, Page Faults: %d, TLB Hit Rate: %.1f%%, Overhead: %.1f%%\n",
+           ciclos_col, page_faults, hit_rate_col, overhead_col);
+
+    free(imagen);
+    free(resultado_filas);
+    free(resultado_columnas);
+
+    return 0;
+}
+
+}
